@@ -1,0 +1,312 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Doc's Bubble Math Explosion</title>
+
+<style>
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: #080e29;
+  color: white;
+  font-family: Arial, sans-serif;
+  text-align: center;
+}
+
+h1 {
+  font-size: clamp(20px, 5vw, 32px);
+  margin: 12px 0 4px;
+  color: #ffe785;
+}
+
+.subtitle {
+  font-size: 13px;
+  margin: 0 8px 8px;
+  color: #d7dfff;
+}
+
+#game {
+  position: relative;
+  width: min(100%, 520px);
+  height: min(78dvh, 780px);
+  min-height: 450px;
+  margin: auto;
+  overflow: hidden;
+  border: 2px solid #5974c7;
+  border-radius: 18px;
+  background:
+    radial-gradient(ellipse at 25% 20%, #294887, transparent 55%),
+    radial-gradient(ellipse at 80% 75%, #43236e, transparent 60%),
+    #080e29;
+}
+
+canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.legend {
+  font-size: 13px;
+  padding: 10px;
+  color: #d7dfff;
+}
+</style>
+</head>
+
+<body>
+
+<h1>DOC'S BUBBLE MATH</h1>
+<p class="subtitle">
+  Let x = 2, y = 4, z = 5, a = 1, b = 3
+</p>
+
+<div id="game">
+  <canvas id="canvas"></canvas>
+</div>
+
+<div class="legend">
+  PINK = QUESTIONS &nbsp; | &nbsp; BLUE = ANSWERS
+</div>
+
+<script>
+"use strict";
+
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+const game = document.getElementById("game");
+
+// Exact expressions and evaluated answers
+// from Doc's original worksheet.
+const problems = [
+  ["x(y + z)", "18"],
+  ["z(b - a)", "10"],
+  ["(x + z)(y + a)", "35"],
+  ["y + b(z - x)", "13"],
+  ["y + a(x + y) - b", "7"],
+  ["x(a + b + y + z)", "26"],
+  ["z(y - x) + z(b - a)", "20"],
+  ["[y + b(z - a)] / x", "8"],
+  ["b[x(y - a) + z]", "33"],
+  ["x(z + a) / b", "4"],
+  ["[y + b(a + a)] / xz", "1"]
+];
+
+let W, H;
+let bubbles = [];
+let lastTime = 0;
+
+const R = 31;
+const SPEED = 0.65;
+
+function resize() {
+  W = game.clientWidth;
+  H = game.clientHeight;
+
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = Math.round(W * dpr);
+  canvas.height = Math.round(H * dpr);
+
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+
+function makeBubbles() {
+  bubbles = [];
+
+  problems.forEach((pair, id) => {
+    bubbles.push({
+      id,
+      type: "question",
+      text: pair[0]
+    });
+
+    bubbles.push({
+      id,
+      type: "answer",
+      text: pair[1]
+    });
+  });
+
+  // Arrange bubbles in a staggered grid initially.
+  // They immediately begin moving.
+  const cols = 4;
+  const rows = Math.ceil(bubbles.length / cols);
+
+  bubbles.forEach((b, i) => {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+
+    b.x = R + 5 + col * (W - 2 * R - 10) / (cols - 1);
+    b.y = R + 5 + row * (H - 2 * R - 10) / (rows - 1);
+
+    const angle = Math.random() * Math.PI * 2;
+    b.vx = Math.cos(angle) * SPEED;
+    b.vy = Math.sin(angle) * SPEED;
+    b.r = R;
+  });
+}
+
+function drawBubble(b) {
+  const question = b.type === "question";
+
+  const gradient = ctx.createRadialGradient(
+    b.x - 10, b.y - 12, 2,
+    b.x, b.y, b.r
+  );
+
+  if (question) {
+    gradient.addColorStop(0, "#ffd7f1");
+    gradient.addColorStop(0.65, "#e67bc6");
+    gradient.addColorStop(1, "#9b348f");
+  } else {
+    gradient.addColorStop(0, "#d8faff");
+    gradient.addColorStop(0.65, "#64d5fa");
+    gradient.addColorStop(1, "#2372c6");
+  }
+
+  ctx.save();
+
+  ctx.shadowColor = question ? "#ff75d5" : "#54dbff";
+  ctx.shadowBlur = 14;
+
+  ctx.beginPath();
+  ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+  ctx.fillStyle = gradient;
+  ctx.fill();
+
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = "rgba(255,255,255,.8)";
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Glossy reflection
+  ctx.beginPath();
+  ctx.ellipse(
+    b.x - 10, b.y - 15,
+    9, 5, -0.6, 0, Math.PI * 2
+  );
+  ctx.fillStyle = "rgba(255,255,255,.5)";
+  ctx.fill();
+
+  // Automatically shrink long expressions to fit.
+  let size = question ? 10 : 17;
+  ctx.font = `bold ${size}px Arial`;
+
+  while (
+    ctx.measureText(b.text).width > b.r * 1.85 &&
+    size > 6
+  ) {
+    size--;
+    ctx.font = `bold ${size}px Arial`;
+  }
+
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = "#111c43";
+  ctx.fillText(b.text, b.x, b.y + 3);
+
+  ctx.restore();
+}
+
+function move(dt) {
+  for (const b of bubbles) {
+    b.x += b.vx * dt;
+    b.y += b.vy * dt;
+
+    // Bounce off screen boundaries.
+    if (b.x < b.r) {
+      b.x = b.r;
+      b.vx = Math.abs(b.vx);
+    }
+
+    if (b.x > W - b.r) {
+      b.x = W - b.r;
+      b.vx = -Math.abs(b.vx);
+    }
+
+    if (b.y < b.r) {
+      b.y = b.r;
+      b.vy = Math.abs(b.vy);
+    }
+
+    if (b.y > H - b.r) {
+      b.y = H - b.r;
+      b.vy = -Math.abs(b.vy);
+    }
+  }
+
+  // Bubble-to-bubble collision physics.
+  for (let i = 0; i < bubbles.length; i++) {
+    for (let j = i + 1; j < bubbles.length; j++) {
+      const a = bubbles[i];
+      const b = bubbles[j];
+
+      let dx = b.x - a.x;
+      let dy = b.y - a.y;
+      let dist = Math.hypot(dx, dy);
+
+      if (dist === 0) {
+        dx = 0.01;
+        dist = 0.01;
+      }
+
+      const minimum = a.r + b.r;
+
+      if (dist >= minimum) continue;
+
+      const nx = dx / dist;
+      const ny = dy / dist;
+
+      // Separate overlapping bubbles.
+      const overlap = minimum - dist;
+      a.x -= nx * overlap / 2;
+      a.y -= ny * overlap / 2;
+      b.x += nx * overlap / 2;
+      b.y += ny * overlap / 2;
+
+      // Equal-mass elastic collision.
+      const relative =
+        (b.vx - a.vx) * nx +
+        (b.vy - a.vy) * ny;
+
+      if (relative < 0) {
+        a.vx += relative * nx;
+        a.vy += relative * ny;
+        b.vx -= relative * nx;
+        b.vy -= relative * ny;
+      }
+    }
+  }
+}
+
+function animate(time) {
+  const dt = Math.min((time - (lastTime || time)) / 16.67, 2);
+  lastTime = time;
+
+  ctx.clearRect(0, 0, W, H);
+
+  move(dt);
+
+  for (const b of bubbles) {
+    drawBubble(b);
+  }
+
+  requestAnimationFrame(animate);
+}
+
+resize();
+makeBubbles();
+requestAnimationFrame(animate);
+
+window.addEventListener("resize", () => {
+  resize();
+  makeBubbles();
+});
+</script>
+
+</body>
+</html>
