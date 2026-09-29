@@ -469,15 +469,13 @@ function animate(time) {
 
   updateParticles(dt);
 
-  if(transition && elapsed>=transition) {
-    if(round<rounds.length-1) {
-      round++;
-      startRound();
-    } else {
-      finished=true;
-      transition=0;
-    }
-  }
+  
+// ENDLESS GAME: RESTART THE SAME BUBBLES
+
+if (transition && elapsed >= transition) {
+  startRound();
+}
+
 
   if(finished) drawFinale();
 
