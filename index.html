@@ -18,15 +18,21 @@ body {
 }
 
 h1 {
-  font-size: clamp(20px, 5vw, 32px);
-  margin: 12px 0 4px;
   color: #ffe785;
+  font-size: clamp(21px, 5vw, 32px);
+  margin: 12px 0 5px;
 }
 
 .subtitle {
-  font-size: 13px;
-  margin: 0 8px 8px;
+  font-size: 14px;
   color: #d7dfff;
+  margin: 5px;
+}
+
+#score {
+  color: #ffe785;
+  font-weight: bold;
+  margin: 8px;
 }
 
 #game {
@@ -55,23 +61,40 @@ canvas {
   padding: 10px;
   color: #d7dfff;
 }
+
+button {
+  background: #ffe785;
+  color: #111c43;
+  border: none;
+  border-radius: 20px;
+  padding: 10px 25px;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  margin: 8px;
+}
 </style>
 </head>
 
 <body>
 
 <h1>DOC'S BUBBLE MATH</h1>
+
 <p class="subtitle">
-  Let x = 2, y = 4, z = 5, a = 1, b = 3
+  x = 2, y = 4, z = 5, a = 1, b = 3
 </p>
+
+<div id="score">ROUND 1 | MATCHES: 0/5</div>
 
 <div id="game">
   <canvas id="canvas"></canvas>
 </div>
 
-<div class="legend">
-  PINK = QUESTIONS &nbsp; | &nbsp; BLUE = ANSWERS
-</div>
+<p class="legend">
+  PINK = QUESTIONS | BLUE = ANSWERS
+</p>
+
+<button onclick="restart()">RESTART</button>
 
 <script>
 "use strict";
@@ -79,91 +102,139 @@ canvas {
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
 const game = document.getElementById("game");
+const score = document.getElementById("score");
 
-// Exact expressions and evaluated answers
-// from Doc's original worksheet.
-const problems = [
-  ["x(y + z)", "18"],
-  ["z(b - a)", "10"],
-  ["(x + z)(y + a)", "35"],
-  ["y + b(z - x)", "13"],
-  ["y + a(x + y) - b", "7"],
-  ["x(a + b + y + z)", "26"],
-  ["z(y - x) + z(b - a)", "20"],
-  ["[y + b(z - a)] / x", "8"],
-  ["b[x(y - a) + z]", "33"],
-  ["x(z + a) / b", "4"],
-  ["[y + b(a + a)] / xz", "1"]
+// All 11 original worksheet problems.
+// The last problem is the bonus round.
+
+const rounds = [
+  [
+    ["x(y + z)", "18"],
+    ["z(b - a)", "10"],
+    ["(x + z)(y + a)", "35"],
+    ["y + b(z - x)", "13"],
+    ["y + a(x + y) - b", "7"]
+  ],
+  [
+    ["x(a + b + y + z)", "26"],
+    ["z(y - x) + z(b - a)", "20"],
+    ["[y + b(z - a)] / x", "8"],
+    ["b[x(y - a) + z]", "33"],
+    ["x(z + a) / b", "4"]
+  ],
+  [
+    ["[y + b(a + a)] / xz", "1"]
+  ]
 ];
 
 let W, H;
 let bubbles = [];
+let particles = [];
+
+let currentRound = 0;
+let matches = 0;
+let totalMatches = 0;
+let nextRoundTime = 0;
+let finished = false;
 let lastTime = 0;
 
-const R = 31;
-const SPEED = 0.65;
+const SPEED = 1.15;
+const TOTAL = 11;
 
 function resize() {
   W = game.clientWidth;
   H = game.clientHeight;
 
   const dpr = window.devicePixelRatio || 1;
+
   canvas.width = Math.round(W * dpr);
   canvas.height = Math.round(H * dpr);
 
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
 
-function makeBubbles() {
+// Bubble radius adapts to screen width.
+function radius() {
+  return Math.min(49, Math.max(31, W * 0.095));
+}
+
+function startRound() {
   bubbles = [];
+  particles = [];
+  matches = 0;
+  nextRoundTime = 0;
+
+  const problems = rounds[currentRound];
+  const R = radius();
 
   problems.forEach((pair, id) => {
     bubbles.push({
       id,
       type: "question",
-      text: pair[0]
+      text: pair[0],
+      r: R,
+      active: true
     });
 
     bubbles.push({
       id,
       type: "answer",
-      text: pair[1]
+      text: pair[1],
+      r: R,
+      active: true
     });
   });
 
-  // Arrange bubbles in a staggered grid initially.
-  // They immediately begin moving.
-  const cols = 4;
+  // Spread bubbles across the playing field.
+  // They begin moving immediately.
+
+  const cols = 2;
   const rows = Math.ceil(bubbles.length / cols);
 
   bubbles.forEach((b, i) => {
     const col = i % cols;
     const row = Math.floor(i / cols);
 
-    b.x = R + 5 + col * (W - 2 * R - 10) / (cols - 1);
-    b.y = R + 5 + row * (H - 2 * R - 10) / (rows - 1);
+    b.x = R + 5 +
+      col * Math.max(0, W - 2 * R - 10);
+
+    b.y = R + 5 +
+      row * Math.max(
+        0,
+        (H - 2 * R - 10) / Math.max(1, rows - 1)
+      );
 
     const angle = Math.random() * Math.PI * 2;
+
     b.vx = Math.cos(angle) * SPEED;
     b.vy = Math.sin(angle) * SPEED;
-    b.r = R;
   });
+
+  updateScore();
+}
+
+function updateScore() {
+  score.textContent =
+    "ROUND " + (currentRound + 1) +
+    " | MATCHES: " + matches +
+    "/" + rounds[currentRound].length +
+    " | TOTAL: " + totalMatches + "/" + TOTAL;
 }
 
 function drawBubble(b) {
   const question = b.type === "question";
 
   const gradient = ctx.createRadialGradient(
-    b.x - 10, b.y - 12, 2,
+    b.x - 12, b.y - 15, 2,
     b.x, b.y, b.r
   );
 
   if (question) {
-    gradient.addColorStop(0, "#ffd7f1");
+    gradient.addColorStop(0, "#ffe1f5");
     gradient.addColorStop(0.65, "#e67bc6");
     gradient.addColorStop(1, "#9b348f");
   } else {
-    gradient.addColorStop(0, "#d8faff");
+    gradient.addColorStop(0, "#e0fcff");
     gradient.addColorStop(0.65, "#64d5fa");
     gradient.addColorStop(1, "#2372c6");
   }
@@ -171,7 +242,7 @@ function drawBubble(b) {
   ctx.save();
 
   ctx.shadowColor = question ? "#ff75d5" : "#54dbff";
-  ctx.shadowBlur = 14;
+  ctx.shadowBlur = 17;
 
   ctx.beginPath();
   ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
@@ -179,26 +250,73 @@ function drawBubble(b) {
   ctx.fill();
 
   ctx.shadowBlur = 0;
-  ctx.strokeStyle = "rgba(255,255,255,.8)";
-  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = "rgba(255,255,255,.85)";
+  ctx.lineWidth = 2;
   ctx.stroke();
 
-  // Glossy reflection
+  // Glossy reflection.
   ctx.beginPath();
   ctx.ellipse(
-    b.x - 10, b.y - 15,
-    9, 5, -0.6, 0, Math.PI * 2
+    b.x - 14,
+    b.y - 20,
+    11, 6, -0.6,
+    0, Math.PI * 2
   );
-  ctx.fillStyle = "rgba(255,255,255,.5)";
+  ctx.fillStyle = "rgba(255,255,255,.55)";
   ctx.fill();
 
-  // Automatically shrink long expressions to fit.
-  let size = question ? 10 : 17;
+  drawText(b);
+
+  ctx.restore();
+}
+
+// Split long expressions across two lines.
+function drawText(b) {
+  const question = b.type === "question";
+
+  let lines = [b.text];
+
+  if (question && b.text.length > 14) {
+    const midpoint = Math.floor(b.text.length / 2);
+
+    // Break near an operator.
+    let split = -1;
+
+    for (let offset = 0; offset < 7; offset++) {
+      for (const index of [
+        midpoint - offset,
+        midpoint + offset
+      ]) {
+        if (
+          index > 0 &&
+          index < b.text.length - 1 &&
+          "+-".includes(b.text[index])
+        ) {
+          split = index;
+          break;
+        }
+      }
+
+      if (split !== -1) break;
+    }
+
+    if (split !== -1) {
+      lines = [
+        b.text.slice(0, split).trim(),
+        b.text.slice(split).trim()
+      ];
+    }
+  }
+
+  let size = question ? 13 : 23;
+
   ctx.font = `bold ${size}px Arial`;
 
   while (
-    ctx.measureText(b.text).width > b.r * 1.85 &&
-    size > 6
+    lines.some(
+      line => ctx.measureText(line).width > b.r * 1.8
+    ) &&
+    size > 8
   ) {
     size--;
     ctx.font = `bold ${size}px Arial`;
@@ -207,17 +325,85 @@ function drawBubble(b) {
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillStyle = "#111c43";
-  ctx.fillText(b.text, b.x, b.y + 3);
 
-  ctx.restore();
+  const lineHeight = size * 1.2;
+  const startY =
+    b.y - ((lines.length - 1) * lineHeight) / 2;
+
+  lines.forEach((line, index) => {
+    ctx.fillText(
+      line,
+      b.x,
+      startY + index * lineHeight
+    );
+  });
+}
+
+// Colorful explosion.
+function explode(x, y) {
+  const colors = [
+    "#ffe785",
+    "#ff66cc",
+    "#64d5fa",
+    "#ffffff",
+    "#9dff9a",
+    "#ff9b59"
+  ];
+
+  for (let i = 0; i < 90; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 2 + Math.random() * 6;
+
+    particles.push({
+      x,
+      y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      life: 65 + Math.random() * 25,
+      color: colors[
+        Math.floor(Math.random() * colors.length)
+      ],
+      size: 2 + Math.random() * 5
+    });
+  }
+}
+
+function updateParticles(dt) {
+  for (const p of particles) {
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+
+    p.vx *= Math.pow(0.98, dt);
+    p.vy *= Math.pow(0.98, dt);
+
+    p.life -= dt;
+
+    if (p.life > 0) {
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, p.life / 30);
+      ctx.fillStyle = p.color;
+      ctx.shadowColor = p.color;
+      ctx.shadowBlur = 10;
+
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.restore();
+    }
+  }
+
+  particles = particles.filter(p => p.life > 0);
 }
 
 function move(dt) {
-  for (const b of bubbles) {
+  const active = bubbles.filter(b => b.active);
+
+  for (const b of active) {
     b.x += b.vx * dt;
     b.y += b.vy * dt;
 
-    // Bounce off screen boundaries.
+    // Bounce off boundaries.
     if (b.x < b.r) {
       b.x = b.r;
       b.vx = Math.abs(b.vx);
@@ -239,11 +425,13 @@ function move(dt) {
     }
   }
 
-  // Bubble-to-bubble collision physics.
-  for (let i = 0; i < bubbles.length; i++) {
-    for (let j = i + 1; j < bubbles.length; j++) {
-      const a = bubbles[i];
-      const b = bubbles[j];
+  // Check every bubble collision.
+  for (let i = 0; i < active.length; i++) {
+    for (let j = i + 1; j < active.length; j++) {
+      const a = active[i];
+      const b = active[j];
+
+      if (!a.active || !b.active) continue;
 
       let dx = b.x - a.x;
       let dy = b.y - a.y;
@@ -251,6 +439,7 @@ function move(dt) {
 
       if (dist === 0) {
         dx = 0.01;
+        dy = 0;
         dist = 0.01;
       }
 
@@ -258,17 +447,45 @@ function move(dt) {
 
       if (dist >= minimum) continue;
 
+      // Correct question-answer collision.
+      if (
+        a.id === b.id &&
+        a.type !== b.type
+      ) {
+        a.active = false;
+        b.active = false;
+
+        explode(
+          (a.x + b.x) / 2,
+          (a.y + b.y) / 2
+        );
+
+        matches++;
+        totalMatches++;
+
+        updateScore();
+
+        if (
+          matches === rounds[currentRound].length
+        ) {
+          nextRoundTime = performance.now() + 2500;
+        }
+
+        continue;
+      }
+
+      // Incorrect collision: bounce apart.
       const nx = dx / dist;
       const ny = dy / dist;
 
-      // Separate overlapping bubbles.
       const overlap = minimum - dist;
+
       a.x -= nx * overlap / 2;
       a.y -= ny * overlap / 2;
+
       b.x += nx * overlap / 2;
       b.y += ny * overlap / 2;
 
-      // Equal-mass elastic collision.
       const relative =
         (b.vx - a.vx) * nx +
         (b.vy - a.vy) * ny;
@@ -276,6 +493,7 @@ function move(dt) {
       if (relative < 0) {
         a.vx += relative * nx;
         a.vy += relative * ny;
+
         b.vx -= relative * nx;
         b.vy -= relative * ny;
       }
@@ -283,30 +501,91 @@ function move(dt) {
   }
 }
 
+function drawFinale() {
+  ctx.save();
+
+  ctx.fillStyle = "rgba(8,14,41,.82)";
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.textAlign = "center";
+  ctx.fillStyle = "#ffe785";
+
+  ctx.font = "bold 30px Arial";
+  ctx.fillText("YOU DID IT!", W / 2, H / 2 - 35);
+
+  ctx.fillStyle = "white";
+  ctx.font = "bold 21px Arial";
+  ctx.fillText(
+    "11 MATCHES!",
+    W / 2,
+    H / 2 + 5
+  );
+
+  ctx.font = "16px Arial";
+  ctx.fillText(
+    "DOC'S BUBBLE MATH",
+    W / 2,
+    H / 2 + 40
+  );
+
+  ctx.restore();
+}
+
 function animate(time) {
-  const dt = Math.min((time - (lastTime || time)) / 16.67, 2);
+  const dt = Math.min(
+    (time - (lastTime || time)) / 16.67,
+    2
+  );
+
   lastTime = time;
 
   ctx.clearRect(0, 0, W, H);
 
-  move(dt);
+  if (!finished) {
+    move(dt);
 
-  for (const b of bubbles) {
-    drawBubble(b);
+    for (const b of bubbles) {
+      if (b.active) drawBubble(b);
+    }
+  }
+
+  updateParticles(dt);
+
+  if (nextRoundTime && time >= nextRoundTime) {
+    if (currentRound < rounds.length - 1) {
+      currentRound++;
+      startRound();
+    } else {
+      finished = true;
+      nextRoundTime = 0;
+    }
+  }
+
+  if (finished) {
+    drawFinale();
   }
 
   requestAnimationFrame(animate);
 }
 
+function restart() {
+  currentRound = 0;
+  totalMatches = 0;
+  finished = false;
+  lastTime = 0;
+
+  startRound();
+}
+
 resize();
-makeBubbles();
+restart();
 requestAnimationFrame(animate);
 
 window.addEventListener("resize", () => {
   resize();
-  makeBubbles();
+  restart();
 });
-</script>
 
+</script>
 </body>
 </html>
