@@ -53,7 +53,17 @@ button {
 
 <h1>DOC'S BUBBLE MATH</h1>
 <p class="subtitle">x = 2, y = 4, z = 5, a = 1, b = 3</p>
+
+<div id="liveTimer"
+     style="font-size:30px;
+            font-weight:bold;
+            color:#ffe785;
+            margin:10px;">
+  00:00:00
+</div>
+
 <div id="score">ROUND 1</div>
+
 <div id="game"><canvas id="canvas"></canvas></div>
 <p class="legend">PINK = QUESTIONS | BLUE = ANSWERS</p>
 <button onclick="restart()">RESTART</button>
@@ -481,6 +491,28 @@ function restart() {
   lastTime=0;
   startRound();
 }
+
+// CONTINUOUS LIVESTREAM TIMER
+const liveTimer = document.getElementById("liveTimer");
+const liveStart = Date.now();
+
+function updateLiveTimer() {
+  const seconds = Math.floor(
+    (Date.now() - liveStart) / 1000
+  );
+
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const secs = seconds % 60;
+
+  liveTimer.textContent =
+    String(hours).padStart(2, "0") + ":" +
+    String(minutes).padStart(2, "0") + ":" +
+    String(secs).padStart(2, "0");
+}
+
+updateLiveTimer();
+setInterval(updateLiveTimer, 1000);
 
 resize();
 restart();
