@@ -3,59 +3,77 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Doc's Bubble Math Challenge</title>
+<meta name="viewport"
+content="width=device-width,initial-scale=1,maximum-scale=1">
+
+<title>Doc's Bubble Math LIVE</title>
 
 <style>
 * {
   box-sizing: border-box;
 }
 
-body {
+html, body {
   margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
   background: #080e29;
-  color: white;
   font-family: Arial, sans-serif;
+  color: white;
+}
+
+#app {
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #080e29;
+}
+
+header {
+  flex: 0 0 auto;
+  padding: 8px 4px 5px;
   text-align: center;
+  background: #080e29;
 }
 
 h1 {
   color: #ffe785;
-  font-size: clamp(19px, 5vw, 27px);
-  margin: 8px 0 4px;
+  font-size: clamp(16px, 4.4vw, 27px);
+  margin: 3px 0;
 }
 
 .subtitle {
+  font-size: clamp(10px, 2.7vw, 15px);
+  margin: 5px 0;
   color: #d7dfff;
-  font-size: 13px;
-  margin: 5px;
 }
 
 #timer {
-  font-size: 29px;
-  font-weight: bold;
+  font-size: clamp(23px, 6vw, 36px);
   color: #ffe785;
-  margin: 7px;
+  font-weight: bold;
+  margin: 5px 0;
   font-variant-numeric: tabular-nums;
 }
 
 #score {
-  color: #ffffff;
-  font-size: 16px;
+  font-size: clamp(13px, 3.5vw, 18px);
   font-weight: bold;
-  margin: 7px;
+  margin: 5px 0;
 }
 
 #game {
   position: relative;
-  width: min(100%, 450px);
-  height: 76dvh;
-  min-height: 650px;
-  max-height: 850px;
-  margin: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
   overflow: hidden;
   border: 2px solid #5974c7;
-  border-radius: 16px;
+  border-radius: 12px;
   background:
     radial-gradient(
       ellipse at 25% 20%,
@@ -76,50 +94,48 @@ canvas {
   height: 100%;
 }
 
-.legend {
+footer {
+  flex: 0 0 auto;
+  padding: 8px 4px;
+  text-align: center;
+  background: #080e29;
   color: #d7dfff;
   font-size: 13px;
-  padding: 8px;
-}
-
-button {
-  background: #ffe785;
-  color: #111c43;
-  border: none;
-  border-radius: 22px;
-  padding: 10px 25px;
-  font-size: 15px;
-  font-weight: bold;
-  margin: 8px;
-  cursor: pointer;
 }
 </style>
 </head>
 
 <body>
 
-<h1>ONLY QUICK THINKERS CAN WIN!</h1>
+<div id="app">
 
-<p class="subtitle">
-  HOW MANY CAN YOU SOLVE BEFORE THEY DISAPPEAR?
-</p>
+<header>
+  <h1>ONLY QUICK THINKERS CAN WIN!</h1>
 
-<p class="subtitle">
-  x = 2, y = 4, z = 5, a = 1, b = 3
-</p>
+  <p class="subtitle">
+    HOW MANY CAN YOU SOLVE BEFORE THEY DISAPPEAR?
+  </p>
 
-<div id="timer">00:00:00</div>
+  <p class="subtitle">
+    x = 2, y = 4, z = 5, a = 1, b = 3
+  </p>
 
-<div id="score">MATCHES: 0 / 5</div>
+  <div id="timer">00:00:00</div>
+
+  <div id="score">
+    MATCHES: 0 / 5
+  </div>
+</header>
 
 <div id="game">
   <canvas id="canvas"></canvas>
 </div>
 
-<div class="legend">
+<footer>
   PINK = QUESTIONS | BLUE = ANSWERS
-</div>
+</footer>
 
+</div>
 
 <script>
 "use strict";
@@ -127,10 +143,9 @@ button {
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
 const game = document.getElementById("game");
-const score = document.getElementById("score");
 const timer = document.getElementById("timer");
+const score = document.getElementById("score");
 
-// Original worksheet: questions 1 through 5.
 const problems = [
   ["x(y + z)", "18"],
   ["z(b - a)", "10"],
@@ -141,29 +156,26 @@ const problems = [
 
 let W = 0;
 let H = 0;
-
 let bubbles = [];
 let particles = [];
 
 let matches = 0;
-let gamesPlayed = 0;
-let nextGameAt = null;
+let gameNumber = 1;
+let replayAt = null;
 let lastTime = 0;
 
-// Continuous timer never resets during replay.
-let timerStarted = performance.now();
+const startTime = performance.now();
+const SPEED = 0.95;
+const REPLAY_DELAY = 1200;
 
-// Bubble movement speed.
-const SPEED = 1.0;
-
-// Pause briefly after the final explosion.
-const REPLAY_DELAY = 1000;
-
-function resizeCanvas() {
+function resize() {
   W = game.clientWidth;
   H = game.clientHeight;
 
-  const dpr = window.devicePixelRatio || 1;
+  const dpr = Math.min(
+    window.devicePixelRatio || 1,
+    2
+  );
 
   canvas.width = Math.round(W * dpr);
   canvas.height = Math.round(H * dpr);
@@ -171,9 +183,12 @@ function resizeCanvas() {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
 
-// Questions are bigger than answers.
-function getRadius(type) {
-  const scale = Math.min(1, W / 390);
+function radius(type) {
+  const scale = Math.min(
+    1,
+    W / 390,
+    H / 580
+  );
 
   return type === "question"
     ? 49 * scale
@@ -182,283 +197,256 @@ function getRadius(type) {
 
 function updateScore() {
   score.textContent =
-    "MATCHES: " + matches + " / 5" +
-    " | GAME: " + (gamesPlayed + 1);
+    "MATCHES: " + matches +
+    " / 5 | GAME: " + gameNumber;
 }
 
 function updateTimer(now) {
-  const seconds = Math.floor(
-    (now - timerStarted) / 1000
+  const s = Math.floor(
+    (now - startTime) / 1000
   );
 
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor(
-    (seconds % 3600) / 60
-  );
-  const secs = seconds % 60;
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
 
   timer.textContent =
-    String(hours).padStart(2, "0") + ":" +
-    String(minutes).padStart(2, "0") + ":" +
-    String(secs).padStart(2, "0");
+    String(h).padStart(2, "0") + ":" +
+    String(m).padStart(2, "0") + ":" +
+    String(sec).padStart(2, "0");
 }
 
-// Randomize the starting positions.
-// Never intentionally start two bubbles
-// on top of each other.
+// Find an empty starting location.
 function findPosition(r) {
-  for (let attempt = 0; attempt < 2000; attempt++) {
-    const x = r + Math.random() * (W - 2 * r);
-    const y = r + Math.random() * (H - 2 * r);
+  for (let i = 0; i < 1500; i++) {
+    const x = r + Math.random() * (W - 2*r);
+    const y = r + Math.random() * (H - 2*r);
 
-    const available = bubbles.every(b => {
-      const distance = Math.hypot(
-        x - b.x,
-        y - b.y
-      );
+    const clear = bubbles.every(b =>
+      Math.hypot(x-b.x, y-b.y) >
+      r+b.r+5
+    );
 
-      return distance > r + b.r + 5;
-    });
-
-    if (available) {
-      return { x, y };
-    }
+    if (clear) return {x,y};
   }
 
   return null;
 }
 
-function createGame() {
+function startGame() {
   bubbles = [];
   matches = 0;
-  nextGameAt = null;
+  replayAt = null;
 
   const items = [];
 
-  problems.forEach((pair, id) => {
+  problems.forEach((pair,id) => {
     items.push({
-      id: id,
-      type: "question",
-      text: pair[0]
+      id,
+      type:"question",
+      text:pair[0]
     });
 
     items.push({
-      id: id,
-      type: "answer",
-      text: pair[1]
+      id,
+      type:"answer",
+      text:pair[1]
     });
   });
 
-  // Fisher-Yates shuffle.
-  for (let i = items.length - 1; i > 0; i--) {
-    const j = Math.floor(
-      Math.random() * (i + 1)
+  // Randomize bubble positions.
+  for(let i=items.length-1;i>0;i--) {
+    const j=Math.floor(
+      Math.random()*(i+1)
     );
 
-    [items[i], items[j]] =
-      [items[j], items[i]];
+    [items[i],items[j]] =
+      [items[j],items[i]];
   }
 
-  for (const item of items) {
-    item.r = getRadius(item.type);
+  for(const b of items) {
+    b.r=radius(b.type);
 
-    let position = findPosition(item.r);
+    let pos=findPosition(b.r);
 
-    // Adapt to unusually crowded screens.
-    if (!position) {
-      for (let attempt = 0; attempt < 5; attempt++) {
-        item.r *= 0.9;
-        position = findPosition(item.r);
-        if (position) break;
-      }
+    // Make bubbles slightly smaller only
+    // if the browser window is overcrowded.
+    while(!pos && b.r>20) {
+      b.r*=0.94;
+      pos=findPosition(b.r);
     }
 
-    if (!position) {
-      // Use the least crowded sampled position.
-      let best = null;
-      let bestGap = -Infinity;
+    if(!pos) {
+      // Place the bubble in the least
+      // crowded sampled location.
+      let bestGap=-Infinity;
 
-      for (let k = 0; k < 500; k++) {
-        const x = item.r +
-          Math.random() * (W - 2 * item.r);
+      for(let k=0;k<500;k++) {
+        const x=b.r+
+          Math.random()*Math.max(0,W-2*b.r);
+        const y=b.r+
+          Math.random()*Math.max(0,H-2*b.r);
 
-        const y = item.r +
-          Math.random() * (H - 2 * item.r);
-
-        const gap = bubbles.length
-          ? Math.min(...bubbles.map(b =>
-              Math.hypot(x - b.x, y - b.y)
-              - b.r - item.r
+        const gap=bubbles.length
+          ? Math.min(...bubbles.map(other =>
+              Math.hypot(
+                x-other.x,
+                y-other.y
+              )-b.r-other.r
             ))
           : 100;
 
-        if (gap > bestGap) {
-          bestGap = gap;
-          best = { x, y };
+        if(gap>bestGap) {
+          bestGap=gap;
+          pos={x,y};
         }
       }
-
-      position = best;
     }
 
-    item.x = position.x;
-    item.y = position.y;
+    b.x=pos.x;
+    b.y=pos.y;
 
-    const angle = Math.random() * Math.PI * 2;
+    const angle=Math.random()*Math.PI*2;
 
-    item.vx = Math.cos(angle) * SPEED;
-    item.vy = Math.sin(angle) * SPEED;
-    item.active = true;
+    b.vx=Math.cos(angle)*SPEED;
+    b.vy=Math.sin(angle)*SPEED;
+    b.active=true;
 
-    bubbles.push(item);
+    bubbles.push(b);
   }
 
   updateScore();
 }
 
-// Break longer expressions across lines.
-function getTextLines(text, isQuestion) {
-  if (!isQuestion || text.length <= 13) {
-    return [text];
+function textLines(b) {
+  if(
+    b.type!=="question" ||
+    b.text.length<=13
+  ) {
+    return [b.text];
   }
 
-  const mid = Math.floor(text.length / 2);
-  let split = -1;
+  const mid=Math.floor(b.text.length/2);
+  let split=-1;
 
-  for (let offset = 0; offset < 9; offset++) {
-    for (const i of [
-      mid - offset,
-      mid + offset
+  for(let offset=0;offset<9;offset++) {
+    for(const i of [
+      mid-offset,
+      mid+offset
     ]) {
-      if (
-        i > 0 &&
-        i < text.length - 1 &&
-        "+-".includes(text[i])
+      if(
+        i>0 &&
+        i<b.text.length-1 &&
+        "+-".includes(b.text[i])
       ) {
-        split = i;
+        split=i;
         break;
       }
     }
 
-    if (split !== -1) break;
+    if(split!==-1) break;
   }
 
-  if (split === -1) {
-    return [text];
-  }
+  if(split===-1) return [b.text];
 
   return [
-    text.slice(0, split).trim(),
-    text.slice(split).trim()
+    b.text.slice(0,split).trim(),
+    b.text.slice(split).trim()
   ];
 }
 
-function drawText(b) {
-  const question = b.type === "question";
-  const lines = getTextLines(b.text, question);
-
-  let fontSize = question ? 16 : 24;
-
-  ctx.font = `bold ${fontSize}px Arial`;
-
-  while (
-    fontSize > 8 &&
-    lines.some(line =>
-      ctx.measureText(line).width > b.r * 1.8
-    )
-  ) {
-    fontSize--;
-    ctx.font = `bold ${fontSize}px Arial`;
-  }
-
-  ctx.fillStyle = "#111c43";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-
-  const lineHeight = fontSize * 1.2;
-
-  const startY =
-    b.y - (lines.length - 1) * lineHeight / 2;
-
-  lines.forEach((line, index) => {
-    ctx.fillText(
-      line,
-      b.x,
-      startY + index * lineHeight,
-      b.r * 1.85
-    );
-  });
-}
-
 function drawBubble(b) {
-  const question = b.type === "question";
+  const question=b.type==="question";
 
-  const gradient = ctx.createRadialGradient(
-    b.x - b.r * 0.3,
-    b.y - b.r * 0.35,
+  const g=ctx.createRadialGradient(
+    b.x-b.r*.3,
+    b.y-b.r*.35,
     2,
     b.x,
     b.y,
     b.r
   );
 
-  if (question) {
-    gradient.addColorStop(0, "#ffe1f5");
-    gradient.addColorStop(0.65, "#e67bc6");
-    gradient.addColorStop(1, "#9b348f");
+  if(question) {
+    g.addColorStop(0,"#ffe1f5");
+    g.addColorStop(.65,"#e67bc6");
+    g.addColorStop(1,"#9b348f");
   } else {
-    gradient.addColorStop(0, "#e0fcff");
-    gradient.addColorStop(0.65, "#64d5fa");
-    gradient.addColorStop(1, "#2372c6");
+    g.addColorStop(0,"#e0fcff");
+    g.addColorStop(.65,"#64d5fa");
+    g.addColorStop(1,"#2372c6");
   }
 
   ctx.save();
 
-  ctx.shadowColor =
-    question ? "#ff75d5" : "#54dbff";
+  ctx.shadowColor=
+    question?"#ff75d5":"#54dbff";
 
-  ctx.shadowBlur = 17;
+  ctx.shadowBlur=17;
 
   ctx.beginPath();
-  ctx.arc(
-    b.x,
-    b.y,
-    b.r,
-    0,
-    Math.PI * 2
-  );
-
-  ctx.fillStyle = gradient;
+  ctx.arc(b.x,b.y,b.r,0,Math.PI*2);
+  ctx.fillStyle=g;
   ctx.fill();
 
-  ctx.shadowBlur = 0;
-  ctx.strokeStyle = "rgba(255,255,255,.85)";
-  ctx.lineWidth = 2;
+  ctx.shadowBlur=0;
+  ctx.lineWidth=2;
+  ctx.strokeStyle="rgba(255,255,255,.85)";
   ctx.stroke();
 
-  // Bubble reflection.
+  // Glossy highlight.
   ctx.beginPath();
   ctx.ellipse(
-    b.x - b.r * 0.28,
-    b.y - b.r * 0.4,
-    b.r * 0.23,
-    b.r * 0.12,
-    -0.6,
+    b.x-b.r*.28,
+    b.y-b.r*.4,
+    b.r*.23,
+    b.r*.12,
+    -.6,
     0,
-    Math.PI * 2
+    Math.PI*2
   );
 
-  ctx.fillStyle = "rgba(255,255,255,.55)";
+  ctx.fillStyle="rgba(255,255,255,.55)";
   ctx.fill();
 
-  drawText(b);
+  const lines=textLines(b);
+
+  let size=question?16:24;
+
+  ctx.font=`bold ${size}px Arial`;
+
+  while(
+    size>8 &&
+    lines.some(line =>
+      ctx.measureText(line).width>b.r*1.8
+    )
+  ) {
+    size--;
+    ctx.font=`bold ${size}px Arial`;
+  }
+
+  ctx.textAlign="center";
+  ctx.textBaseline="middle";
+  ctx.fillStyle="#111c43";
+
+  const lineHeight=size*1.2;
+  const top=
+    b.y-(lines.length-1)*lineHeight/2;
+
+  lines.forEach((line,i) => {
+    ctx.fillText(
+      line,
+      b.x,
+      top+i*lineHeight,
+      b.r*1.85
+    );
+  });
 
   ctx.restore();
 }
 
-// Large colorful explosion.
-function explode(x, y) {
-  const colors = [
+function explode(x,y) {
+  const colors=[
     "#ffe785",
     "#ff66cc",
     "#64d5fa",
@@ -467,172 +455,156 @@ function explode(x, y) {
     "#ff9b59"
   ];
 
-  for (let i = 0; i < 130; i++) {
-    const angle = Math.random() * Math.PI * 2;
-    const speed = 2 + Math.random() * 7;
+  for(let i=0;i<130;i++) {
+    const angle=Math.random()*Math.PI*2;
+    const speed=2+Math.random()*7;
 
     particles.push({
-      x,
-      y,
-      vx: Math.cos(angle) * speed,
-      vy: Math.sin(angle) * speed,
-      life: 55 + Math.random() * 30,
-      size: 2 + Math.random() * 5,
-      color: colors[
-        Math.floor(Math.random() * colors.length)
+      x,y,
+      vx:Math.cos(angle)*speed,
+      vy:Math.sin(angle)*speed,
+      life:55+Math.random()*30,
+      size:2+Math.random()*5,
+      color:colors[
+        Math.floor(Math.random()*colors.length)
       ]
     });
   }
 }
 
-function updateParticles(dt) {
-  for (const p of particles) {
-    p.x += p.vx * dt;
-    p.y += p.vy * dt;
+function drawParticles(dt) {
+  for(const p of particles) {
+    p.x+=p.vx*dt;
+    p.y+=p.vy*dt;
 
-    p.vx *= Math.pow(0.98, dt);
-    p.vy *= Math.pow(0.98, dt);
+    p.vx*=Math.pow(.98,dt);
+    p.vy*=Math.pow(.98,dt);
 
-    p.life -= dt;
+    p.life-=dt;
 
-    if (p.life <= 0) continue;
+    if(p.life<=0) continue;
 
     ctx.save();
-
-    ctx.globalAlpha = Math.min(
-      1,
-      p.life / 25
-    );
-
-    ctx.fillStyle = p.color;
-    ctx.shadowColor = p.color;
-    ctx.shadowBlur = 12;
+    ctx.globalAlpha=Math.min(1,p.life/25);
+    ctx.fillStyle=p.color;
+    ctx.shadowColor=p.color;
+    ctx.shadowBlur=12;
 
     ctx.beginPath();
     ctx.arc(
-      p.x,
-      p.y,
-      p.size,
-      0,
-      Math.PI * 2
+      p.x,p.y,p.size,
+      0,Math.PI*2
     );
     ctx.fill();
 
     ctx.restore();
   }
 
-  particles = particles.filter(
-    p => p.life > 0
+  particles=particles.filter(
+    p=>p.life>0
   );
 }
 
-// Keep every bubble inside the game.
 function keepInside(b) {
-  if (b.x < b.r) {
-    b.x = b.r;
-    b.vx = Math.abs(b.vx);
+  if(b.x<b.r) {
+    b.x=b.r;
+    b.vx=Math.abs(b.vx);
   }
 
-  if (b.x > W - b.r) {
-    b.x = W - b.r;
-    b.vx = -Math.abs(b.vx);
+  if(b.x>W-b.r) {
+    b.x=W-b.r;
+    b.vx=-Math.abs(b.vx);
   }
 
-  if (b.y < b.r) {
-    b.y = b.r;
-    b.vy = Math.abs(b.vy);
+  if(b.y<b.r) {
+    b.y=b.r;
+    b.vy=Math.abs(b.vy);
   }
 
-  if (b.y > H - b.r) {
-    b.y = H - b.r;
-    b.vy = -Math.abs(b.vy);
+  if(b.y>H-b.r) {
+    b.y=H-b.r;
+    b.vy=-Math.abs(b.vy);
   }
 }
 
-function move(dt, now) {
-  const active = bubbles.filter(
-    b => b.active
+function move(dt,now) {
+  const active=bubbles.filter(
+    b=>b.active
   );
 
-  // All bubbles move continuously.
-  for (const b of active) {
-    b.x += b.vx * dt;
-    b.y += b.vy * dt;
-
+  for(const b of active) {
+    b.x+=b.vx*dt;
+    b.y+=b.vy*dt;
     keepInside(b);
   }
 
-  // Detect all collisions.
-  for (let i = 0; i < active.length; i++) {
-    for (let j = i + 1; j < active.length; j++) {
-      const a = active[i];
-      const b = active[j];
+  for(let i=0;i<active.length;i++) {
+    for(let j=i+1;j<active.length;j++) {
+      const a=active[i];
+      const b=active[j];
 
-      if (!a.active || !b.active) continue;
+      if(!a.active || !b.active) continue;
 
-      let dx = b.x - a.x;
-      let dy = b.y - a.y;
-      let distance = Math.hypot(dx, dy);
+      let dx=b.x-a.x;
+      let dy=b.y-a.y;
+      let dist=Math.hypot(dx,dy);
 
-      if (distance < 0.001) {
-        const angle = Math.random() * Math.PI * 2;
-        dx = Math.cos(angle);
-        dy = Math.sin(angle);
-        distance = 1;
+      if(dist<.001) {
+        const angle=Math.random()*Math.PI*2;
+        dx=Math.cos(angle);
+        dy=Math.sin(angle);
+        dist=1;
       }
 
-      const minimum = a.r + b.r;
+      const minimum=a.r+b.r;
 
-      if (distance >= minimum) continue;
+      if(dist>=minimum) continue;
 
-      // Every correct match explodes immediately.
-      // There are NO delayed matches.
-      const correct =
-        a.id === b.id &&
-        a.type !== b.type;
+      // Correct answers explode immediately.
+      const correct=
+        a.id===b.id &&
+        a.type!==b.type;
 
-      if (correct) {
-        a.active = false;
-        b.active = false;
+      if(correct) {
+        a.active=false;
+        b.active=false;
 
         explode(
-          (a.x + b.x) / 2,
-          (a.y + b.y) / 2
+          (a.x+b.x)/2,
+          (a.y+b.y)/2
         );
 
         matches++;
         updateScore();
 
-        // Automatically replay after match 5.
-        if (matches === problems.length) {
-          nextGameAt = now + REPLAY_DELAY;
+        if(matches===problems.length) {
+          replayAt=now+REPLAY_DELAY;
         }
 
         continue;
       }
 
-      // Incorrect pairs bounce apart.
-      const nx = dx / distance;
-      const ny = dy / distance;
+      // Incorrect bubbles bounce.
+      const nx=dx/dist;
+      const ny=dy/dist;
+      const overlap=minimum-dist;
 
-      const overlap = minimum - distance;
+      a.x-=nx*overlap/2;
+      a.y-=ny*overlap/2;
 
-      a.x -= nx * overlap / 2;
-      a.y -= ny * overlap / 2;
+      b.x+=nx*overlap/2;
+      b.y+=ny*overlap/2;
 
-      b.x += nx * overlap / 2;
-      b.y += ny * overlap / 2;
+      const relative=
+        (b.vx-a.vx)*nx+
+        (b.vy-a.vy)*ny;
 
-      const relative =
-        (b.vx - a.vx) * nx +
-        (b.vy - a.vy) * ny;
+      if(relative<0) {
+        a.vx+=relative*nx;
+        a.vy+=relative*ny;
 
-      if (relative < 0) {
-        a.vx += relative * nx;
-        a.vy += relative * ny;
-
-        b.vx -= relative * nx;
-        b.vy -= relative * ny;
+        b.vx-=relative*nx;
+        b.vy-=relative*ny;
       }
 
       keepInside(a);
@@ -642,54 +614,60 @@ function move(dt, now) {
 }
 
 function animate(now) {
-  const dt = Math.min(
-    (now - (lastTime || now)) / 16.67,
+  const dt=Math.min(
+    (now-(lastTime||now))/16.67,
     2
   );
 
-  lastTime = now;
+  lastTime=now;
 
-  ctx.clearRect(0, 0, W, H);
+  ctx.clearRect(0,0,W,H);
 
-  // Livestream timer never stops.
   updateTimer(now);
 
-  move(dt, now);
+  move(dt,now);
 
-  for (const b of bubbles) {
-    if (b.active) {
-      drawBubble(b);
-    }
+  for(const b of bubbles) {
+    if(b.active) drawBubble(b);
   }
 
-  updateParticles(dt);
+  drawParticles(dt);
 
-  // Endless replay of the SAME five problems.
-  if (nextGameAt !== null && now >= nextGameAt) {
-    gamesPlayed++;
-    createGame();
+  // Endless automatic replay.
+  if(replayAt!==null && now>=replayAt) {
+    gameNumber++;
+    startGame();
   }
 
   requestAnimationFrame(animate);
 }
 
-// Manual restart does not reset live timer.
-function restart() {
-  gamesPlayed = 0;
-  particles = [];
-  createGame();
-}
-
-resizeCanvas();
-createGame();
+resize();
+startGame();
 requestAnimationFrame(animate);
 
-// Adjust dimensions if the browser changes size.
-window.addEventListener("resize", () => {
-  resizeCanvas();
-  particles = [];
-  createGame();
+// Handle TikTok browser-source resizing.
+const observer=new ResizeObserver(() => {
+  const oldW=W;
+  const oldH=H;
+
+  resize();
+
+  if(
+    Math.abs(W-oldW)>1 ||
+    Math.abs(H-oldH)>1
+  ) {
+    // Keep the existing game running
+    // while adapting to new dimensions.
+    for(const b of bubbles) {
+      b.x*=W/Math.max(1,oldW);
+      b.y*=H/Math.max(1,oldH);
+      keepInside(b);
+    }
+  }
 });
+
+observer.observe(game);
 
 </script>
 </body>
